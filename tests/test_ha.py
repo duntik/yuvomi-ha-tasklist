@@ -8,8 +8,10 @@ from unittest.mock import AsyncMock
 
 HA_AVAILABLE = importlib.util.find_spec("homeassistant") is not None
 if HA_AVAILABLE:
+    from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.todo import TodoItemStatus
 
+    from custom_components.yuvomi.config_flow import YuvomiConfigFlow
     from custom_components.yuvomi.todo import YuvomiTodo
     from custom_components.yuvomi.websocket import FIELDS, get_coordinator
 
@@ -50,6 +52,26 @@ class HomeAssistantTests(unittest.IsolatedAsyncioTestCase):
         item = entity.todo_items[0]
         self.assertEqual(item.status, TodoItemStatus.NEEDS_ACTION)
         self.assertEqual(item.due.isoformat(), "2026-07-01T10:00:00+01:00")
+
+    async def test_setup_form_is_valid_with_current_ha_selectors(self):
+        flow = YuvomiConfigFlow()
+        flow.hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/London"))
+        result = await flow.async_step_user()
+        self.assertEqual(result["step_id"], "user")
+        values = result["data_schema"]({"url": "http://yuvomi.local", "token": "test"})
+        self.assertEqual(values["time_zone"], "Europe/London")
+        self.assertTrue(values["enhance_ui"])
+
+    async def test_frontend_module_registration_uses_supported_ha_api(self):
+        hass = SimpleNamespace(
+            data={"frontend": {"extra_module_url": set(), "extra_js_url_es5": set()}}
+        )
+        # Inspect registration through the real frontend helper.
+        from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL
+
+        hass.data[DATA_EXTRA_MODULE_URL] = set()
+        add_extra_js_url(hass, "/yuvomi_tasklist/yuvomi.js?v=0.1.0")
+        self.assertIn("/yuvomi_tasklist/yuvomi.js?v=0.1.0", hass.data[DATA_EXTRA_MODULE_URL])
 
     async def test_rename_preserves_in_progress(self):
         entity = self.entity()
