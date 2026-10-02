@@ -1,0 +1,23 @@
+{
+  "title": "Yuvomi Tasklist",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Yuvomi",
+        "description": "Create an API token in Yuvomi Settings → API Tokens with tasks:write scope. Set the timezone to match the Yuvomi household. The interface enhancement is experimental.",
+        "data": {"url": "Yuvomi URL", "token": "API token", "time_zone": "Yuvomi household timezone", "enhance_ui": "Enhance the built-in To-do interface (experimental)"}
+      },
+      "reauth_confirm": {"title": "Update Yuvomi token", "data": {"token": "API token"}}
+    },
+    "error": {
+      "cannot_connect": "Cannot read Yuvomi tasks or metadata. Check URL, token permissions and server availability.",
+      "invalid_auth": "Invalid or expired API token.",
+      "invalid_config": "Check the URL, token and timezone (for example Europe/London)."
+    },
+    "abort": {"already_configured": "This Yuvomi server is already configured.", "reauth_successful": "Token updated."}
+  },
+  "options": {
+    "step": {"init": {"title": "Yuvomi options", "description": "After changing the interface option, refresh the HA browser tab.", "data": {"time_zone": "Yuvomi household timezone", "enhance_ui": "Enhance the built-in To-do interface (experimental)"}}},
+    "error": {"invalid_config": "Enter a valid timezone, for example Europe/London."}
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "yuvomi-ha-tasklist",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/frontend.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.1"
+  }
+}
