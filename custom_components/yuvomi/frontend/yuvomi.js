@@ -202,24 +202,29 @@ if (typeof window !== "undefined") {
     renderSubtasks() {
       this.main.append(element("h3", {}, this.t("subtasks")));
       for (const subtask of this.task.subtasks || []) {
-        const row = element("div", {className: "row"});
-        const checkbox = element("input", {type: "checkbox", checked: subtask.status === "done"});
-        checkbox.setAttribute("aria-label", subtask.title);
-        checkbox.addEventListener("change", async () => {
-          await this.action("status", {uid: String(subtask.id), fields: {status: checkbox.checked ? "done" : "open"}});
-          // Keep unsaved parent fields; only revert a failed subtask toggle.
-          if (this.error.textContent) checkbox.checked = subtask.status === "done";
-        });
-        const edit = this.button(subtask.title, () => launch(this.hass, this.entityId, subtask.id), "", false);
-        row.append(checkbox, edit); this.main.append(row);
+        this.main.append(this.subtaskRow(subtask));
       }
       const row = element("div", {className: "row"}); const input = element("input", {placeholder: this.t("new")});
       input.setAttribute("aria-label", this.t("new"));
       row.append(input, this.button("add", async () => {
         if (!input.value.trim()) return;
         const result = await this.action("create", {fields: {title: input.value.trim(), parent_task_id: Number(this.uid)}});
-        if (result) {input.value = ""; row.before(element("p", {}, `${this.t("saved")} · ${result.data?.title || ""}`));}
+        if (result?.data?.id) {input.value = ""; row.before(this.subtaskRow(result.data));}
       })); this.main.append(row);
+    }
+    subtaskRow(subtask) {
+        const row = element("div", {className: "row"});
+        const checkbox = element("input", {type: "checkbox", checked: subtask.status === "done"});
+        checkbox.setAttribute("aria-label", subtask.title);
+        checkbox.addEventListener("change", async () => {
+          const status = checkbox.checked ? "done" : "open";
+          const result = await this.action("status", {uid: String(subtask.id), fields: {status}});
+          // Keep unsaved parent fields; only revert a failed subtask toggle.
+          if (this.error.textContent) checkbox.checked = subtask.status === "done";
+          else if (result) subtask.status = status;
+        });
+        const edit = this.button(subtask.title, () => launch(this.hass, this.entityId, subtask.id), "", false);
+        row.append(checkbox, edit); return row;
     }
     fields() {
       const c = this.controls; const repeat = c.repeat.value;

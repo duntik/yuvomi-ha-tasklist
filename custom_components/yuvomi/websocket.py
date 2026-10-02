@@ -3,6 +3,7 @@
 import voluptuous as vol
 from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
 from homeassistant.components import websocket_api
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -41,7 +42,11 @@ def get_coordinator(hass, connection, entity_id, write=False):
     if not registry_entry or registry_entry.platform != DOMAIN:
         raise YuvomiError("Select a Yuvomi To-do entity")
     entry = hass.config_entries.async_get_entry(registry_entry.config_entry_id)
-    if not entry or not hasattr(entry, "runtime_data"):
+    if (
+        not entry
+        or entry.state is not ConfigEntryState.LOADED
+        or not hasattr(entry, "runtime_data")
+    ):
         raise YuvomiError("Yuvomi integration is not loaded")
     if not entry.runtime_data.last_update_success:
         raise YuvomiError("Yuvomi is unavailable; refresh the integration")
