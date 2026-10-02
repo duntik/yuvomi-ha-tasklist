@@ -11,6 +11,8 @@ Home Assistant + Yuvomi installation. Start with test tasks.
 
 ## Installation / Установка
 
+[Пошаговая инструкция на русском](INSTALL.ru.md)
+
 1. In **HACS → ⋮ → Custom repositories**, add
    `https://github.com/duntik/yuvomi-ha-tasklist`, category **Integration**.
 2. Download **Yuvomi Tasklist**, then restart Home Assistant.
