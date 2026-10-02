@@ -1,0 +1,23 @@
+{
+  "title": "Yuvomi Tasklist",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Подключить Yuvomi",
+        "description": "Создай API-токен в настройках Yuvomi → API Tokens с доступом tasks:write. Укажи часовой пояс семьи Yuvomi. Расширение интерфейса — экспериментальное.",
+        "data": {"url": "Адрес Yuvomi", "token": "API-токен", "time_zone": "Часовой пояс семьи Yuvomi", "enhance_ui": "Расширить встроенный To-do (экспериментально)"}
+      },
+      "reauth_confirm": {"title": "Обновить токен Yuvomi", "data": {"token": "API-токен"}}
+    },
+    "error": {
+      "cannot_connect": "Не удалось прочитать задачи или параметры Yuvomi. Проверь адрес, права токена и доступность сервера.",
+      "invalid_auth": "API-токен недействителен или истёк.",
+      "invalid_config": "Проверь адрес, токен и часовой пояс, например Europe/London."
+    },
+    "abort": {"already_configured": "Этот сервер Yuvomi уже подключён.", "reauth_successful": "Токен обновлён."}
+  },
+  "options": {
+    "step": {"init": {"title": "Настройки Yuvomi", "description": "После изменения расширения интерфейса обнови вкладку HA в браузере.", "data": {"time_zone": "Часовой пояс семьи Yuvomi", "enhance_ui": "Расширить встроенный To-do (экспериментально)"}}},
+    "error": {"invalid_config": "Укажи действительный часовой пояс, например Europe/London."}
+  }
+}

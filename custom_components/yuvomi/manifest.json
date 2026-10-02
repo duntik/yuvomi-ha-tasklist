@@ -1,0 +1,13 @@
+{
+  "domain": "yuvomi",
+  "name": "Yuvomi Tasklist",
+  "version": "0.1.0",
+  "codeowners": ["@duntik"],
+  "config_flow": true,
+  "documentation": "https://github.com/duntik/yuvomi-ha-tasklist",
+  "issue_tracker": "https://github.com/duntik/yuvomi-ha-tasklist/issues",
+  "dependencies": ["frontend", "http", "websocket_api"],
+  "iot_class": "local_polling",
+  "integration_type": "service",
+  "requirements": []
+}
