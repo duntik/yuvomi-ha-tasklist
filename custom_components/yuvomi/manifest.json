@@ -1,7 +1,7 @@
 {
   "domain": "yuvomi",
   "name": "Yuvomi Tasklist",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "codeowners": ["@duntik"],
   "config_flow": true,
   "documentation": "https://github.com/duntik/yuvomi-ha-tasklist",

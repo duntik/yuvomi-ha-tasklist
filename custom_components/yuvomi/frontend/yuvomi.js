@@ -291,7 +291,7 @@ if (typeof window !== "undefined") {
       this.overview = true;
       this.shadowRoot.append(element("style", {}, css + `
         :host{display:block;width:100%;box-sizing:border-box;padding:16px}
-        .board{max-width:1400px;margin:auto} header{padding:0 0 16px;gap:8px}
+        .board{width:100%;max-width:none;margin:0} header{padding:0 0 16px;gap:8px}
         header input{flex:1;min-width:160px;width:auto} header select{width:auto;max-width:180px}
         .workspace{display:grid;grid-template-columns:minmax(280px,1fr) minmax(300px,1.2fr);gap:20px}
         .list,.detail{background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:14px;overflow:hidden}
@@ -529,7 +529,7 @@ if (typeof window !== "undefined") {
     const applyCompact = (collapsed) => {
       if (!layout) return;
       layout.classList.toggle("yuvomi-compact-lists", collapsed);
-      if (collapsed) layout.style.setProperty("--sidepane-width", "64px");
+      if (collapsed) layout.style.setProperty("--sidepane-width", "48px");
       else layout.style.removeProperty("--sidepane-width");
       for (const item of panel.shadowRoot.querySelectorAll('[slot="pane"] ha-dropdown-item,[slot="pane-footer"]')) {
         if (collapsed) {
@@ -550,10 +550,11 @@ if (typeof window !== "undefined") {
       if (!panel.shadowRoot.querySelector("[data-yuvomi-layout-style]")) {
         const style = element("style", {}, `
           .yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(label){display:none}
-          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(base){padding-inline:12px;justify-content:center}
-          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item{font-size:0}
+          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(checkmark),.yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(details){display:none}
+          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item{display:flex;justify-content:center;align-items:center;padding:0!important;min-height:48px;width:100%;box-sizing:border-box;font-size:16px}
           .yuvomi-compact-lists [slot="pane-footer"]{font-size:0}
-          .yuvomi-compact-lists [slot="pane"] ha-state-icon{width:24px;height:24px}
+          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(icon){position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block;width:24px;height:24px}
+          .yuvomi-compact-lists [slot="pane"] ha-state-icon{width:24px;height:24px;margin-inline:0!important}
           @media(min-width:651px){.yuvomi-compact-lists [slot="title"]{font-size:0}}
           ha-two-pane-top-app-bar-fixed:has(yuvomi-task-board) .fab{display:none}
         `);style.dataset.yuvomiLayoutStyle = "true";panel.shadowRoot.append(style);
