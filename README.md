@@ -16,6 +16,9 @@ Manual installation: extract `yuvomi-hacs.zip` from Releases, copy its `yuvomi` 
 
 ## Features
 
+- Collapsible list sidebar with an icon rail, tooltips and a saved preference.
+- Mobile filters drawer, single-task detail view with Back to tasks, and larger touch targets.
+
 - Two-way task creation, editing, completion, reopening and deletion.
 - Category groups, List/Kanban views, search and filters by category, status, assignee and priority.
 - Sorting by due date, priority or title.
@@ -41,3 +44,5 @@ Attachments, completion history, notifications and reward reports are not implem
 ## Development
 
 Run Python tests with `python -m unittest discover -s tests -v` and frontend tests with `npm test`. HA-dependent tests run on Linux CI. DOM tests cover editor updates, board mounting, provider switching, filters, comments and draft preservation. See [DESIGN.md](DESIGN.md) for architecture.
+
+Run browser layout checks with `npx playwright install chromium` and `npx playwright test`. They exercise the actual board in a simulated HA-shaped host at 360, 390, 768 and 1440 pixel widths; they do not replace live HA or physical-phone testing.

@@ -296,19 +296,28 @@ if (typeof window !== "undefined") {
         .workspace{display:grid;grid-template-columns:minmax(280px,1fr) minmax(300px,1.2fr);gap:20px}
         .list,.detail{background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:14px;overflow:hidden}
         .list{max-height:calc(100dvh - 220px);overflow:auto}.detail{padding:20px;align-self:start;position:sticky;top:16px}
-        .task{display:flex;gap:12px;padding:16px;align-items:center}.task button{border:0;padding:0;min-height:24px}
+        .task{display:flex;gap:12px;padding:16px;align-items:center}.task button{border:0;padding:0;min-height:44px;overflow-wrap:anywhere}
         .task input{flex-shrink:0}.task .body{flex:1;min-width:0}.task.selected{background:var(--secondary-background-color)}
         .group{margin:0;padding:14px 16px;font-size:13px;color:var(--secondary-text-color);background:var(--secondary-background-color)}
         .avatars{display:flex;gap:4px}.avatar{border-radius:50%;padding:5px;background:var(--primary-color);color:var(--text-primary-color);font-size:11px}
         .detail h2{margin-bottom:20px}.detail dt{color:var(--secondary-text-color);font-size:12px;margin-top:16px}.detail dd{margin:6px 0;white-space:pre-wrap}
         .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}.description{white-space:pre-wrap}.kanban{display:grid;grid-template-columns:repeat(3,minmax(200px,1fr));gap:12px;overflow:auto}
         .empty{padding:20px;color:var(--secondary-text-color)}
+        .filters{margin:0}.filters summary{display:none}.filter-fields{display:flex;flex-wrap:wrap;gap:8px}
+        .back{display:none}.detail{min-width:0;overflow-wrap:anywhere}.avatars{flex-wrap:wrap;max-width:90px}
         @media(max-width:850px){.workspace{grid-template-columns:1fr}.detail{position:static}.list{max-height:55dvh}.kanban{grid-template-columns:1fr}header select{max-width:140px}}
+        @media(max-width:650px){:host{padding:10px;padding-bottom:calc(24px + var(--safe-area-inset-bottom,0px))}
+          header h2{flex:1}header input{order:2;flex-basis:100%;min-width:0}.filters{order:3;width:100%}.filters summary{display:block;padding:12px;border:1px solid var(--divider-color);border-radius:8px}
+          .filter-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.filter-fields select{width:100%;max-width:100%;min-width:0}
+          .workspace{gap:0;min-width:0}.list{max-height:none}.task{padding:12px;gap:8px}.avatars{max-width:60px}
+          .detail{display:none;padding:14px}.workspace.show-detail .detail{display:block}.workspace.show-detail .list,.workspace.show-detail .kanban{display:none}
+          .back{display:inline-block;margin-bottom:12px}.kanban{overflow:visible}.task .body{overflow-wrap:anywhere}button,select,input{min-height:44px}textarea{font-size:16px}
+        }
       `));
       this.dialog = element("div", {className: "board"});
       this.shadowRoot.append(this.dialog);
       this.load();
-      this.refreshTimer = setInterval(() => {if (!this.busy) this.load();}, 30000);
+      this.refreshTimer = setInterval(() => {if (!this.busy && !this.shadowRoot.activeElement?.matches("input,textarea,select")) this.load();}, 30000);
       this.onChange = (event) => {if (event.detail.entityId === this.entityId) {this.detailTask = null;this.load();}};
       window.addEventListener("yuvomi-task-changed", this.onChange);
     }
@@ -348,15 +357,23 @@ if (typeof window !== "undefined") {
       const focusSearch = active?.id === "board-search";
       this.dialog.replaceChildren();
       const header = element("header");header.append(element("h2", {}, "Tasks"));
+      if (this.onCollapseLists) {
+        const toggle = this.button(this.listsCollapsed ? "Expand lists" : "Collapse lists", () => {this.onCollapseLists();this.renderOverview();}, "", false);
+        toggle.setAttribute("aria-expanded", String(!this.listsCollapsed));header.append(toggle);
+      }
       const search = element("input", {id: "board-search", type: "search", placeholder: "Search tasks…", value: this.search || ""});
       search.setAttribute("aria-label", "Search tasks");
       search.addEventListener("input", () => {this.search = search.value;this.renderOverview();});
       header.append(search);
+      const filters = element("details", {className:"filters",open:this.filtersOpen ?? (window.innerWidth > 650)});
+      filters.append(element("summary", {}, "Filters and sorting"));
+      filters.addEventListener("toggle", () => {this.filtersOpen = filters.open;});
+      const filterFields = element("div", {className:"filter-fields"});filters.append(filterFields);header.append(filters);
       const select = (label, options, value, change) => {
         const control = element("select");control.setAttribute("aria-label", label);
         for (const [key, name] of options) control.append(element("option", {value: key}, name));
         control.value = value || "";control.addEventListener("change", () => {change(control.value);this.renderOverview();});
-        header.append(control);
+        filterFields.append(control);
       };
       select("Category", [["", "All categories"], ...(this.metadata.categories || []).map((c) => [c.key, c.name || c.key])], this.category, (value) => {this.category = value;});
       select("Status", [["", "Active"], ["all", "All statuses"], ...["open", "in_progress", "done"].map((key) => [key, this.t(key)])], this.status, (value) => {this.status = value;});
@@ -367,7 +384,7 @@ if (typeof window !== "undefined") {
       header.append(this.button(this.showArchive ? "Show active" : "archive", () => {this.showArchive = !this.showArchive;this.load();}));
       header.append(this.button("refresh", () => this.load()), this.button("new", () => launch(this.hass, this.entityId), "primary"));
       this.error = element("div", {className: "error"});this.error.setAttribute("role", "alert");
-      const workspace = element("div", {className: "workspace"});
+      const workspace = element("div", {className: `workspace${this.selectedId ? " show-detail" : ""}`});
       const list = element("div", {className: this.kanban ? "kanban" : "list"});
       const tasks = this.tasks.filter((task) => !task.parent_task_id
         && (!this.category || task.category === this.category)
@@ -398,6 +415,7 @@ if (typeof window !== "undefined") {
       if (!tasks.length) list.append(element("div", {className: "empty"}, "No matching tasks"));
       this.detail = element("aside", {className: "detail"});
       const selected = tasks.find((t) => String(t.id) === String(this.selectedId));
+      if (!selected) workspace.classList.remove("show-detail");
       if (selected) {this.renderDetail(this.detailTask?.id === selected.id ? this.detailTask : selected);this.loadDetail(selected);}
       else this.detail.append(element("div", {className: "empty"}, "Select a task to see details"));
       workspace.append(list, this.detail);this.dialog.append(header, this.error, workspace);
@@ -435,7 +453,7 @@ if (typeof window !== "undefined") {
       } catch (err) {this.error.textContent = err.message || String(err);}
     }
     renderDetail(task) {
-      this.detail.replaceChildren(element("h2", {}, task.title));
+      this.detail.replaceChildren(this.button("Back to tasks", () => {this.selectedId = null;this.detailTask = null;this.renderOverview();}, "back", false),element("h2", {}, task.title));
       this.detail.append(this.button("Edit", () => launch(this.hass, this.entityId, task.id), "", false));
       const fields = element("dl");
       for (const [label, value] of [["Status", this.t(task.status)], ["Category", this.categoryName(task.category)], ["Priority", this.t(task.priority || "none")], ["Assigned to", (task.assigned_users || []).map((u) => u.display_name).join(", ") || "Unassigned"], ["Due date", [task.due_date, task.due_time].filter(Boolean).join(" ")], ["Description", task.description], ["Tags", (task.tags || []).join(", ")]]) {
@@ -507,13 +525,38 @@ if (typeof window !== "undefined") {
     let board = panel.shadowRoot.querySelector("yuvomi-task-board");
     const container = panel.shadowRoot.querySelector("#columns");
     if (!container) return;
+    const layout = panel.shadowRoot.querySelector("ha-two-pane-top-app-bar-fixed");
+    const applyCompact = (collapsed) => {
+      if (!layout) return;
+      layout.classList.toggle("yuvomi-compact-lists", collapsed);
+      if (collapsed) layout.style.setProperty("--sidepane-width", "64px");
+      else layout.style.removeProperty("--sidepane-width");
+      for (const item of panel.shadowRoot.querySelectorAll('[slot="pane"] ha-dropdown-item,[slot="pane-footer"]')) {
+        if (collapsed) {item.title = item.textContent.trim();item.setAttribute("aria-label",item.title);}
+      }
+    };
     if (!hass?.states[entityId]?.attributes.yuvomi_enhance_ui) {
-      board?.remove();container.style.removeProperty("display");return;
+      board?.remove();container.style.removeProperty("display");applyCompact(false);return;
     }
     if (board && board.entityId !== entityId) {board.remove();board = null;}
     if (!board) {
-      board = element("yuvomi-task-board", {hass, entityId});container.before(board);
+      let collapsed = false;try {collapsed = window.localStorage.getItem("yuvomi-compact-lists") === "true";} catch {}
+      board = element("yuvomi-task-board", {hass, entityId,listsCollapsed:collapsed,
+        onCollapseLists:() => {board.listsCollapsed = !board.listsCollapsed;applyCompact(board.listsCollapsed);try {window.localStorage.setItem("yuvomi-compact-lists",String(board.listsCollapsed));} catch {}}
+      });container.before(board);
+      if (!panel.shadowRoot.querySelector("[data-yuvomi-layout-style]")) {
+        const style = element("style", {}, `
+          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(label){display:none}
+          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item::part(base){padding-inline:12px;justify-content:center}
+          .yuvomi-compact-lists [slot="pane"] ha-dropdown-item{font-size:0}
+          .yuvomi-compact-lists [slot="pane-footer"]{font-size:0}
+          .yuvomi-compact-lists [slot="pane"] ha-state-icon{width:24px;height:24px}
+          @media(min-width:651px){.yuvomi-compact-lists [slot="title"]{font-size:0}}
+          ha-two-pane-top-app-bar-fixed:has(yuvomi-task-board) .fab{display:none}
+        `);style.dataset.yuvomiLayoutStyle = "true";panel.shadowRoot.append(style);
+      }
     }
+    applyCompact(board.listsCollapsed);
     board.hass = hass;
     container.style.display = "none";
   }, 1500);
