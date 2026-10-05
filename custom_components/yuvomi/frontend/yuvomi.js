@@ -398,7 +398,7 @@ if (typeof window !== "undefined") {
       if (!tasks.length) list.append(element("div", {className: "empty"}, "No matching tasks"));
       this.detail = element("aside", {className: "detail"});
       const selected = tasks.find((t) => String(t.id) === String(this.selectedId));
-      if (selected) {this.renderDetail(this.detailTask?.id === selected.id ? this.detailTask : selected);if (!this.detailTask) this.loadDetail(selected);}
+      if (selected) {this.renderDetail(this.detailTask?.id === selected.id ? this.detailTask : selected);this.loadDetail(selected);}
       else this.detail.append(element("div", {className: "empty"}, "Select a task to see details"));
       workspace.append(list, this.detail);this.dialog.append(header, this.error, workspace);
       if (focusSearch) {search.focus();search.setSelectionRange(selection, selection);}
