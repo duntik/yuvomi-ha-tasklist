@@ -22,7 +22,7 @@ Manual installation: extract `yuvomi-hacs.zip` from Releases, copy its `yuvomi` 
 - Task details, assignee initials, descriptions, due dates and tags.
 - Extended editor for priority, category, assignees, start/due dates, recurrence, points, visibility and locking.
 - Subtask creation, editing and completion; task archive and restore.
-- Reading and posting comments, including author and timestamp. Drafts survive automatic refresh.
+- Reading, posting, editing and deleting comments, including author and timestamp. Drafts survive automatic refresh and failed edits. Deletion requires confirmation.
 
 Yuvomi is the source of truth. Tasks refresh approximately every 30 seconds; writes request immediate refresh. Unedited fields are preserved by partial updates. Recurrence is calculated by Yuvomi.
 
@@ -36,7 +36,7 @@ This is an experimental release. CI runs against HA 2026.9.4; the manifest decla
 
 The board uses internal HA frontend hooks. If an HA update breaks it, disable the enhancement and refresh the browser to return to the standard list. Other To-do providers keep their native view. Categories are task fields, not separate HA lists; existing Local To-do lists are not migrated.
 
-Comment editing/deletion, attachments, completion history, notifications and reward reports are not implemented. Shopping lists are outside the scope. Keep the configured household timezone matched to Yuvomi. Concurrent edits to the same task field are last-write-wins.
+Attachments, completion history, notifications and reward reports are not implemented. Yuvomi enforces comment ownership: authors may edit their comments; authors and Yuvomi administrators may delete them. Shopping lists are outside the scope. Keep the configured household timezone matched to Yuvomi. Concurrent edits to the same task field are last-write-wins.
 
 ## Development
 

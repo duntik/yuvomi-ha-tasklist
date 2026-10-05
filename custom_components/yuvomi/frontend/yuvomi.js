@@ -417,7 +417,16 @@ if (typeof window !== "undefined") {
                 const row = element("div", {className: "task"});
                 const body = element("div", {className: "body"});
                 body.append(element("strong", {}, comment.author_name || "Unknown author"), element("div", {className: "badges"}, comment.created_at || ""), element("div", {className: "description"}, comment.comment));
-                row.append(body);target.append(row);
+                row.append(body);
+                if (comment.id) {
+                  body.append(this.button("Edit comment", () => this.editComment(task, comment, body), "", false));
+                  body.append(this.button("Delete comment", async () => {
+                    if (!window.confirm("Delete this comment?")) return;
+                    await this.changeComment(task, "delete_comment", comment.id);
+                  }, "danger", false));
+                  if (this.commentEdits?.[comment.id] !== undefined) this.editComment(task, comment, body);
+                }
+                target.append(row);
               }
               if (!comments.length) target.textContent = "No comments yet";
             }
@@ -457,6 +466,28 @@ if (typeof window !== "undefined") {
         finally {this.busy = false;send.disabled = false;}
       }, "primary", false);
       this.detail.append(this.commentsContainer, draft, send);
+    }
+    editComment(task, comment, container) {
+      this.commentEdits ||= {};
+      this.commentEdits[comment.id] ??= comment.comment;
+      const input = element("textarea", {value:this.commentEdits[comment.id], maxLength:10000});
+      input.setAttribute("aria-label", "Edit comment");
+      input.addEventListener("input", () => {this.commentEdits[comment.id] = input.value;});
+      container.replaceChildren(input);
+      container.append(this.button("save", () => this.changeComment(task, "edit_comment", comment.id, input.value)),
+        this.button("cancel", () => {delete this.commentEdits[comment.id];this.loadDetail(task);}));
+      input.focus();
+    }
+    async changeComment(task, operation, id, comment) {
+      if (this.busy || (operation === "edit_comment" && !comment?.trim())) return;
+      this.busy = true;
+      try {
+        await this.call("yuvomi/mutate", {operation, uid:String(task.id), comment_id:String(id),
+          ...(operation === "edit_comment" ? {comment:comment.trim()} : {})});
+        if (this.commentEdits) delete this.commentEdits[id];
+        await this.loadDetail(task);
+      } catch (err) {this.error.textContent = err.message || String(err);}
+      finally {this.busy = false;}
     }
   }
   if (!customElements.get("yuvomi-task-board")) customElements.define("yuvomi-task-board", YuvomiTaskBoard);

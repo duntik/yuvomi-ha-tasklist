@@ -82,6 +82,23 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(YuvomiError):
             await self.api.comments("../auth")
 
+    async def test_comment_edit_delete_validate_ids_and_permissions(self):
+        await self.api.edit_comment("12", "7", "  Revised  ")
+        self.assertEqual(self.requests[-1][0:2], ("PATCH", "/api/v1/tasks/12/comments/7"))
+        self.assertEqual(self.requests[-1][4], {"comment": "Revised"})
+        await self.api.delete_comment("12", "7")
+        self.assertEqual(self.requests[-1][0:2], ("DELETE", "/api/v1/tasks/12/comments/7"))
+        count = len(self.requests)
+        for comment_id in ("../auth", "0", "7/comments"):
+            with self.assertRaises(YuvomiError):
+                await self.api.delete_comment("12", comment_id)
+        with self.assertRaises(YuvomiError):
+            await self.api.edit_comment("12", "7", "  ")
+        self.assertEqual(len(self.requests), count)
+        self.response_status = 403
+        with self.assertRaises(YuvomiError):
+            await self.api.edit_comment("12", "7", "Revised")
+
     async def test_rejects_token_redirect(self):
         self.response_status = 302
         with self.assertRaises(YuvomiError):

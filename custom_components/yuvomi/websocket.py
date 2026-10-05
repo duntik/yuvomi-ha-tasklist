@@ -94,9 +94,19 @@ async def ws_task(hass, connection, msg):
         vol.Required("type"): "yuvomi/mutate",
         vol.Required("entity_id"): str,
         vol.Required("operation"): vol.In(
-            ["create", "update", "status", "archive", "delete", "comment"]
+            [
+                "create",
+                "update",
+                "status",
+                "archive",
+                "delete",
+                "comment",
+                "edit_comment",
+                "delete_comment",
+            ]
         ),
         vol.Optional("comment"): vol.All(str, vol.Length(min=1, max=10000)),
+        vol.Optional("comment_id"): str,
         vol.Optional("uid"): str,
         vol.Optional("fields", default={}): FIELDS,
         vol.Optional("archived", default=True): bool,
@@ -129,6 +139,13 @@ async def ws_mutate(hass, connection, msg):
                 result = await api.archive(uid, msg["archived"])
             elif operation == "comment":
                 result = await api.add_comment(uid, msg.get("comment", ""))
+            elif operation in {"edit_comment", "delete_comment"}:
+                if "comment_id" not in msg:
+                    raise YuvomiError("Comment ID is required")
+                if operation == "edit_comment":
+                    result = await api.edit_comment(uid, msg["comment_id"], msg.get("comment", ""))
+                else:
+                    result = await api.delete_comment(uid, msg["comment_id"])
             else:
                 result = await api.delete(uid)
             await coordinator.async_refresh()

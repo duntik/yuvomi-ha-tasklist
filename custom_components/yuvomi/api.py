@@ -134,3 +134,17 @@ class YuvomiApi:
         return await self.request(
             "POST", f"tasks/{self.task_id(uid)}/comments", {"comment": comment.strip()}
         )
+
+    async def edit_comment(self, uid: str, comment_id: str, comment: str) -> dict[str, Any]:
+        if not comment.strip():
+            raise YuvomiError("Comment cannot be empty")
+        return await self.request(
+            "PATCH",
+            f"tasks/{self.task_id(uid)}/comments/{self.task_id(comment_id)}",
+            {"comment": comment.strip()},
+        )
+
+    async def delete_comment(self, uid: str, comment_id: str) -> dict[str, Any]:
+        return await self.request(
+            "DELETE", f"tasks/{self.task_id(uid)}/comments/{self.task_id(comment_id)}"
+        )

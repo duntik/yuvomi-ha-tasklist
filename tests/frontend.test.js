@@ -83,6 +83,24 @@ test("native Yuvomi editor opens extended fields and saves only changed values",
       type:"yuvomi/mutate",entity_id:"todo.yuvomi_tasks",operation:"comment",uid:"1",comment:"Comment draft"
     });
     assert.equal(board.detail.querySelector("textarea").value, "");
+    const comment = {id:7,comment:"Original"};
+    board.editComment(task, comment, board.commentsContainer);
+    const editing = board.commentsContainer.querySelector("textarea");
+    editing.value = "Revised";
+    editing.dispatchEvent(new dom.window.Event("input"));
+    const callWS = hass.callWS;
+    hass.callWS = async () => {throw new Error("Permission denied");};
+    await board.changeComment(task, "edit_comment", 7, "Revised");
+    assert.equal(board.commentEdits[7], "Revised", "failed edit keeps the draft");
+    assert.ok(board.error.textContent.includes("Permission denied"));
+    hass.callWS = callWS;
+    await board.changeComment(task, "edit_comment", 7, "Revised");
+    assert.deepEqual(requests.findLast((r) => r.operation === "edit_comment"), {
+      type:"yuvomi/mutate",entity_id:"todo.yuvomi_tasks",operation:"edit_comment",uid:"1",comment_id:"7",comment:"Revised"
+    });
+    assert.equal(board.commentEdits[7], undefined);
+    await board.changeComment(task, "delete_comment", 7);
+    assert.equal(requests.findLast((r) => r.operation === "delete_comment").comment_id, "7");
     assert.ok(board.shadowRoot.querySelector('select[aria-label="Priority"]'));
     board.priority = "low";
     board.renderOverview();
