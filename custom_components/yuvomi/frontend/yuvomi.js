@@ -532,7 +532,10 @@ if (typeof window !== "undefined") {
       if (collapsed) layout.style.setProperty("--sidepane-width", "64px");
       else layout.style.removeProperty("--sidepane-width");
       for (const item of panel.shadowRoot.querySelectorAll('[slot="pane"] ha-dropdown-item,[slot="pane-footer"]')) {
-        if (collapsed) {item.title = item.textContent.trim();item.setAttribute("aria-label",item.title);}
+        if (collapsed) {
+          item.title = [...item.childNodes].filter((node) => node.nodeType === 3).map((node) => node.textContent).join("").trim() || item.textContent.trim();
+          item.setAttribute("aria-label",item.title);
+        }
       }
     };
     if (!hass?.states[entityId]?.attributes.yuvomi_enhance_ui) {
