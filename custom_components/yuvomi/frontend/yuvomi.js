@@ -22,18 +22,7 @@ const words = {
     refresh: "Refresh", stale: "The task changed in Yuvomi. Reload it before saving.",
     saved: "Saved", retry: "Retry", close: "Close", timezone: "Dates use the Yuvomi household timezone configured in HA",
   },
-  ru: { title: "Название", description: "Описание", priority: "Приоритет", category: "Категория", status: "Статус",
-    open: "Открыта", in_progress: "В работе", done: "Завершена", none: "Нет", low: "Низкий", medium: "Средний", high: "Высокий", urgent: "Срочный",
-    assigned: "Исполнители", start: "Дата начала", due: "Срок", time: "Время", tags: "Теги через запятую",
-    repeat: "Повторение", DAILY: "Ежедневно", WEEKLY: "Еженедельно", MONTHLY: "Ежемесячно", YEARLY: "Ежегодно", custom: "Другое",
-    rule: "Правило повторения", fromCompletion: "Повторять от завершения", points: "Баллы", visibility: "Видимость",
-    all: "Домочадцам", private: "Только мне", assignees: "Исполнителям", locked: "Защитить параметры задачи", save: "Сохранить", cancel: "Отмена",
-    delete: "Удалить", archive: "В архив", restore: "Из архива", subtasks: "Подзадачи", add: "Добавить", loading: "Загрузка…",
-    new: "Новая задача", filters: "Yuvomi · фильтры и архив", search: "Поиск", any: "Все", archived: "Показать архив",
-    advanced: "Дополнительные настройки", confirm: "Удалить задачу и её подзадачи?", missing: "Укажи название",
-    refresh: "Обновить", stale: "Задача изменилась в Yuvomi. Перезагрузи её перед сохранением.",
-    saved: "Сохранено", retry: "Повторить", close: "Закрыть", timezone: "Даты — в часовом поясе семьи Yuvomi, указанном при настройке HA",
-  },
+
 };
 
 const css = `
@@ -78,7 +67,7 @@ if (typeof window !== "undefined") {
   class YuvomiTaskDialog extends HTMLElement {
     connectedCallback() {
       this.attachShadow({mode: "open"});
-      this.language = this.hass.language?.startsWith("ru") ? "ru" : "en";
+      this.language = "en";
       this.t = (key) => words[this.language][key] || key;
       this.shadowRoot.append(element("style", {}, css));
       this.dialog = element("dialog");
@@ -141,7 +130,11 @@ if (typeof window !== "undefined") {
       this.busy = true;
       this.dialog.querySelectorAll("button").forEach((button) => {button.disabled = true;});
       this.error.textContent = "";
-      try { return await this.call("yuvomi/mutate", {operation, ...data}); }
+      try {
+        const result = await this.call("yuvomi/mutate", {operation, ...data});
+        window.dispatchEvent(new window.CustomEvent("yuvomi-task-changed", {detail: {entityId: this.entityId}}));
+        return result;
+      }
       catch (error) { this.error.textContent = error.message || String(error); return null; }
       finally { this.busy = false; this.dialog.querySelectorAll("button").forEach((button) => {button.disabled = false;}); }
     }
@@ -290,6 +283,146 @@ if (typeof window !== "undefined") {
     launch(hass, params.entity, params.item?.uid || null);
   }, true);
 
+  class YuvomiTaskBoard extends YuvomiTaskDialog {
+    connectedCallback() {
+      this.attachShadow({mode: "open"});
+      this.language = "en";
+      this.t = (key) => words.en[key] || key;
+      this.overview = true;
+      this.shadowRoot.append(element("style", {}, css + `
+        :host{display:block;width:100%;box-sizing:border-box;padding:16px}
+        .board{max-width:1400px;margin:auto} header{padding:0 0 16px;gap:8px}
+        header input{flex:1;min-width:160px;width:auto} header select{width:auto;max-width:180px}
+        .workspace{display:grid;grid-template-columns:minmax(280px,1fr) minmax(300px,1.2fr);gap:20px}
+        .list,.detail{background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:14px;overflow:hidden}
+        .list{max-height:calc(100dvh - 220px);overflow:auto}.detail{padding:20px;align-self:start;position:sticky;top:16px}
+        .task{display:flex;gap:12px;padding:16px;align-items:center}.task button{border:0;padding:0;min-height:24px}
+        .task input{flex-shrink:0}.task .body{flex:1;min-width:0}.task.selected{background:var(--secondary-background-color)}
+        .group{margin:0;padding:14px 16px;font-size:13px;color:var(--secondary-text-color);background:var(--secondary-background-color)}
+        .avatars{display:flex;gap:4px}.avatar{border-radius:50%;padding:5px;background:var(--primary-color);color:var(--text-primary-color);font-size:11px}
+        .detail h2{margin-bottom:20px}.detail dt{color:var(--secondary-text-color);font-size:12px;margin-top:16px}.detail dd{margin:6px 0;white-space:pre-wrap}
+        .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}.description{white-space:pre-wrap}.kanban{display:grid;grid-template-columns:repeat(3,minmax(200px,1fr));gap:12px;overflow:auto}
+        .empty{padding:20px;color:var(--secondary-text-color)}
+        @media(max-width:850px){.workspace{grid-template-columns:1fr}.detail{position:static}.list{max-height:55dvh}.kanban{grid-template-columns:1fr}header select{max-width:140px}}
+      `));
+      this.dialog = element("div", {className: "board"});
+      this.shadowRoot.append(this.dialog);
+      this.load();
+      this.refreshTimer = setInterval(() => {if (!this.busy) this.load();}, 30000);
+      this.onChange = (event) => {if (event.detail.entityId === this.entityId) {this.detailTask = null;this.load();}};
+      window.addEventListener("yuvomi-task-changed", this.onChange);
+    }
+    disconnectedCallback() {this.destroyed = true; clearInterval(this.refreshTimer);window.removeEventListener("yuvomi-task-changed", this.onChange);}
+    frame() {
+      if (this.tasks) return;
+      this.dialog.replaceChildren();
+      this.error = element("div", {className: "error"});this.error.setAttribute("role", "alert");
+      this.main = element("div", {}, "Loading tasks…");this.footer = element("footer");
+      this.dialog.append(this.error, this.main, this.footer);
+    }
+    async load() {
+      if (this.loading) return;
+      this.loading = true;
+      this.frame();
+      try {
+        const result = await this.call("yuvomi/tasks", {archived: Boolean(this.showArchive)});
+        if (this.destroyed) return;
+        this.tasks = result.tasks;this.metadata = result.metadata;this.renderOverview();
+      } catch (err) {if (!this.destroyed) this.error.textContent = err.message || String(err);}
+      finally {this.loading = false;}
+    }
+    async mutate(task, operation, fields = {}) {
+      if (this.busy) return;
+      this.busy = true;
+      try {
+        await this.call("yuvomi/mutate", {operation, uid: String(task.id), ...fields});
+        this.detailTask = null;
+        await this.load();
+      } catch (err) {this.error.textContent = err.message || String(err);}
+      finally {this.busy = false;}
+    }
+    categoryName(key) {return (this.metadata.categories || []).find((c) => c.key === key)?.name || key || "Miscellaneous";}
+    renderOverview() {
+      const active = this.shadowRoot.activeElement;
+      const selection = active?.selectionStart;
+      const focusSearch = active?.id === "board-search";
+      this.dialog.replaceChildren();
+      const header = element("header");header.append(element("h2", {}, "Tasks"));
+      const search = element("input", {id: "board-search", type: "search", placeholder: "Search tasks…", value: this.search || ""});
+      search.setAttribute("aria-label", "Search tasks");
+      search.addEventListener("input", () => {this.search = search.value;this.renderOverview();});
+      header.append(search);
+      const select = (label, options, value, change) => {
+        const control = element("select");control.setAttribute("aria-label", label);
+        for (const [key, name] of options) control.append(element("option", {value: key}, name));
+        control.value = value || "";control.addEventListener("change", () => {change(control.value);this.renderOverview();});
+        header.append(control);
+      };
+      select("Category", [["", "All categories"], ...(this.metadata.categories || []).map((c) => [c.key, c.name || c.key])], this.category, (value) => {this.category = value;});
+      select("Status", [["", "Active"], ["all", "All statuses"], ...["open", "in_progress", "done"].map((key) => [key, this.t(key)])], this.status, (value) => {this.status = value;});
+      select("Assignee", [["", "All assignees"], ...(this.metadata.users || []).map((u) => [String(u.id), u.display_name])], this.assignee, (value) => {this.assignee = value;});
+      header.append(this.button(this.kanban ? "List view" : "Kanban view", () => {this.kanban = !this.kanban;this.renderOverview();}, "", false));
+      header.append(this.button(this.showArchive ? "Show active" : "archive", () => {this.showArchive = !this.showArchive;this.load();}));
+      header.append(this.button("refresh", () => this.load()), this.button("new", () => launch(this.hass, this.entityId), "primary"));
+      this.error = element("div", {className: "error"});this.error.setAttribute("role", "alert");
+      const workspace = element("div", {className: "workspace"});
+      const list = element("div", {className: this.kanban ? "kanban" : "list"});
+      const tasks = this.tasks.filter((task) => !task.parent_task_id
+        && (!this.category || task.category === this.category)
+        && (this.status === "all" || (this.status ? task.status === this.status : task.status !== "done"))
+        && (!this.assignee || (task.assigned_users || []).some((u) => String(u.id) === this.assignee))
+        && `${task.title} ${task.description || ""}`.toLocaleLowerCase().includes((this.search || "").toLocaleLowerCase()));
+      const groups = new Map();
+      if (this.kanban) for (const status of ["open", "in_progress", "done"]) groups.set(status, []);
+      for (const task of tasks) {const key = this.kanban ? task.status : task.category || "misc";if (!groups.has(key)) groups.set(key, []);groups.get(key).push(task);}
+      for (const [key, group] of groups) {
+        const section = element("section");section.append(element("h3", {className: "group"}, `${this.kanban ? this.t(key) : this.categoryName(key)} · ${group.length}`));
+        for (const task of group) {
+          const row = element("div", {className: `task${String(this.selectedId) === String(task.id) ? " selected" : ""}`});
+          const checkbox = element("input", {type: "checkbox", checked: task.status === "done", disabled: this.busy});checkbox.setAttribute("aria-label", `Complete ${task.title}`);
+          checkbox.addEventListener("change", () => this.mutate(task, "status", {fields: {status: checkbox.checked ? "done" : "open"}}));
+          const body = element("div", {className: "body"});body.append(this.button(task.title, () => {this.selectedId = task.id;this.renderOverview();this.loadDetail(task);}, "", false));
+          body.append(element("div", {className: "badges"}, [task.status === "in_progress" ? "In progress" : "", task.priority !== "none" ? this.t(task.priority || "") : "", task.due_date, task.is_recurring ? "Repeats" : "", (task.tags || []).join(", ")].filter(Boolean).join(" · ")));
+          const avatars = element("div", {className: "avatars"});
+          for (const user of task.assigned_users || []) {const avatar = element("span", {className: "avatar", title: user.display_name}, (user.display_name || "?").split(/\s+/).map((s) => s[0]).slice(0,2).join(""));avatars.append(avatar);}
+          row.append(checkbox, body, avatars);section.append(row);
+        }
+        list.append(section);
+      }
+      if (!tasks.length) list.append(element("div", {className: "empty"}, "No matching tasks"));
+      this.detail = element("aside", {className: "detail"});
+      const selected = tasks.find((t) => String(t.id) === String(this.selectedId));
+      if (selected) {this.renderDetail(this.detailTask?.id === selected.id ? this.detailTask : selected);if (!this.detailTask) this.loadDetail(selected);}
+      else this.detail.append(element("div", {className: "empty"}, "Select a task to see details"));
+      workspace.append(list, this.detail);this.dialog.append(header, this.error, workspace);
+      if (focusSearch) {search.focus();search.setSelectionRange(selection, selection);}
+    }
+    async loadDetail(task) {
+      try {
+        const result = await this.call("yuvomi/task", {uid: String(task.id)});
+        if (!this.destroyed && this.selectedId === task.id) {this.detailTask = result.task;this.renderDetail(result.task);}
+      } catch (err) {this.error.textContent = err.message || String(err);}
+    }
+    renderDetail(task) {
+      this.detail.replaceChildren(element("h2", {}, task.title));
+      this.detail.append(this.button("Edit", () => launch(this.hass, this.entityId, task.id), "", false));
+      const fields = element("dl");
+      for (const [label, value] of [["Status", this.t(task.status)], ["Category", this.categoryName(task.category)], ["Priority", this.t(task.priority || "none")], ["Assigned to", (task.assigned_users || []).map((u) => u.display_name).join(", ") || "Unassigned"], ["Due date", [task.due_date, task.due_time].filter(Boolean).join(" ")], ["Description", task.description], ["Tags", (task.tags || []).join(", ")]]) {
+        if (value) fields.append(element("dt", {}, label), element("dd", {}, value));
+      }
+      this.detail.append(fields, element("h3", {}, "Subtasks"));
+      for (const subtask of task.subtasks || []) this.detail.append(this.subtaskRow(subtask));
+      this.detail.append(this.button("Add subtask", () => launch(this.hass, this.entityId, null, false, task.id), "", false));
+      const actions = element("div", {className: "actions"});
+      actions.append(this.button(task.status === "done" ? "Reopen" : "Complete", () => this.mutate(task, "status", {fields: {status: task.status === "done" ? "open" : "done"}}), "primary", false));
+      if (task.status === "open") actions.append(this.button("Start", () => this.mutate(task, "status", {fields: {status: "in_progress"}}), "", false));
+      actions.append(this.button(task.archived_at ? "restore" : "archive", () => this.mutate(task, "archive", {archived: !task.archived_at})));
+      actions.append(this.button("delete", () => {if (window.confirm(this.t("confirm"))) this.mutate(task, "delete");}, "danger"));
+      this.detail.append(actions);
+    }
+  }
+  if (!customElements.get("yuvomi-task-board")) customElements.define("yuvomi-task-board", YuvomiTaskBoard);
+
   const findPanel = (root) => {
     for (const node of root.querySelectorAll("*")) {
       if (node.localName === "ha-panel-todo") return node;
@@ -302,15 +435,17 @@ if (typeof window !== "undefined") {
     if (!window.location.pathname.startsWith("/todo")) return;
     const panel = findPanel(document); if (!panel?.shadowRoot) return;
     const entityId = panel._entityId; const hass = panel.hass;
-    let button = panel.shadowRoot.querySelector("[data-yuvomi-toolbar]");
-    if (!hass?.states[entityId]?.attributes.yuvomi_enhance_ui) {button?.remove(); return;}
-    if (!button) {
-      const container = panel.shadowRoot.querySelector("#columns"); if (!container) return;
-      button = element("button"); button.dataset.yuvomiToolbar = "true";
-      button.style.cssText = "padding:12px;margin:8px;cursor:pointer;color:var(--primary-color);background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:8px";
-      button.addEventListener("click", () => launch(panel.hass, panel._entityId, null, true));
-      container.before(button);
+    let board = panel.shadowRoot.querySelector("yuvomi-task-board");
+    const container = panel.shadowRoot.querySelector("#columns");
+    if (!container) return;
+    if (!hass?.states[entityId]?.attributes.yuvomi_enhance_ui) {
+      board?.remove();container.style.removeProperty("display");return;
     }
-    button.textContent = words[hass.language?.startsWith("ru") ? "ru" : "en"].filters;
+    if (board && board.entityId !== entityId) {board.remove();board = null;}
+    if (!board) {
+      board = element("yuvomi-task-board", {hass, entityId});container.before(board);
+    }
+    board.hass = hass;
+    container.style.display = "none";
   }, 1500);
 }
