@@ -7,6 +7,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import YuvomiApi
@@ -16,7 +17,10 @@ from .websocket import async_register_commands
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    api = YuvomiApi(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
+    token = entry.data.get(CONF_TOKEN)
+    if not isinstance(token, str) or not token.strip():
+        raise ConfigEntryAuthFailed("Yuvomi API token is missing. Enter a tasks:write token.")
+    api = YuvomiApi(async_get_clientsession(hass), entry.data[CONF_URL], token.strip())
     coordinator = YuvomiCoordinator(hass, entry, api)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator

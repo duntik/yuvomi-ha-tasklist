@@ -53,6 +53,17 @@ class HomeAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item.status, TodoItemStatus.NEEDS_ACTION)
         self.assertEqual(item.due.isoformat(), "2026-07-01T10:00:00+01:00")
 
+    async def test_missing_token_requests_reauthentication_before_network(self):
+        from homeassistant.exceptions import ConfigEntryAuthFailed
+
+        from custom_components.yuvomi import async_setup_entry
+
+        for token in (None, "", "  ", 123):
+            with self.subTest(token=token):
+                entry = SimpleNamespace(data={"url": "http://yuvomi.local", "token": token})
+                with self.assertRaises(ConfigEntryAuthFailed):
+                    await async_setup_entry(None, entry)
+
     async def test_legacy_entry_without_timezone_opens_options(self):
         flow = YuvomiOptionsFlow()
         flow.hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/London"))
