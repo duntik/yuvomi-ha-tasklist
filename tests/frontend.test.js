@@ -33,7 +33,7 @@ test("native Yuvomi editor opens extended fields and saves only changed values",
     is_recurring: 0, recurrence_rule: null, recurrence_from_completion: 0,
     due_date: "2026-10-05", due_time: "10:00", description: "Text"};
   const hass = {language: "ru", states: {"todo.yuvomi_tasks": {attributes: {yuvomi_enhance_ui: true}}},
-    async callWS(request) {requests.push(request); return request.type === "yuvomi/mutate" ? {data: task} :
+    async callWS(request) {requests.push(request); if (request.type === "yuvomi/comments") return [{author_name:"User", comment:"<img src=x onerror=alert(1)>", created_at:"2026-10-05"}];return request.type === "yuvomi/mutate" ? {data: task} :
       {task: structuredClone(task), tasks: [structuredClone(task)], metadata: {categories: [{key: "misc", name: "Misc"}], users: []}};}};
   const host = document.querySelector("home-assistant"); host.hass = hass;
   try {
@@ -69,6 +69,25 @@ test("native Yuvomi editor opens extended fields and saves only changed values",
     await new Promise((resolve) => setImmediate(resolve));
     assert.ok(board.detail.textContent.includes("Description"));
     assert.ok(board.detail.textContent.includes("In progress"));
+    assert.ok(board.detail.querySelector(".comments").textContent.includes("User"));
+    assert.equal(board.detail.querySelectorAll("img").length, 0, "comments stay plain text");
+    const draft = board.detail.querySelector("textarea");
+    draft.value = "Comment draft";
+    draft.dispatchEvent(new dom.window.Event("input"));
+    await board.load();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(board.detail.querySelector("textarea").value, "Comment draft");
+    [...board.detail.querySelectorAll("button")].find((button) => button.textContent === "Post comment").click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(requests.findLast((r) => r.operation === "comment"), {
+      type:"yuvomi/mutate",entity_id:"todo.yuvomi_tasks",operation:"comment",uid:"1",comment:"Comment draft"
+    });
+    assert.equal(board.detail.querySelector("textarea").value, "");
+    assert.ok(board.shadowRoot.querySelector('select[aria-label="Priority"]'));
+    board.priority = "low";
+    board.renderOverview();
+    assert.ok(board.shadowRoot.textContent.includes("No matching tasks"));
+    board.priority = "";
     board.kanban = true;
     board.status = "all";
     board.renderOverview();

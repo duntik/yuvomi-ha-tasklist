@@ -327,7 +327,7 @@ if (typeof window !== "undefined") {
       try {
         const result = await this.call("yuvomi/tasks", {archived: Boolean(this.showArchive)});
         if (this.destroyed) return;
-        this.tasks = result.tasks;this.metadata = result.metadata;this.renderOverview();
+        this.tasks = result.tasks;this.metadata = result.metadata;this.detailTask = null;this.renderOverview();
       } catch (err) {if (!this.destroyed) this.error.textContent = err.message || String(err);}
       finally {this.loading = false;}
     }
@@ -361,6 +361,8 @@ if (typeof window !== "undefined") {
       select("Category", [["", "All categories"], ...(this.metadata.categories || []).map((c) => [c.key, c.name || c.key])], this.category, (value) => {this.category = value;});
       select("Status", [["", "Active"], ["all", "All statuses"], ...["open", "in_progress", "done"].map((key) => [key, this.t(key)])], this.status, (value) => {this.status = value;});
       select("Assignee", [["", "All assignees"], ...(this.metadata.users || []).map((u) => [String(u.id), u.display_name])], this.assignee, (value) => {this.assignee = value;});
+      select("Priority", [["", "All priorities"], ...["none", "low", "medium", "high", "urgent"].map((key) => [key, this.t(key)])], this.priority, (value) => {this.priority = value;});
+      select("Sort", [["", "Default order"], ["due", "Due date"], ["priority", "Priority"], ["title", "Title"]], this.sort, (value) => {this.sort = value;});
       header.append(this.button(this.kanban ? "List view" : "Kanban view", () => {this.kanban = !this.kanban;this.renderOverview();}, "", false));
       header.append(this.button(this.showArchive ? "Show active" : "archive", () => {this.showArchive = !this.showArchive;this.load();}));
       header.append(this.button("refresh", () => this.load()), this.button("new", () => launch(this.hass, this.entityId), "primary"));
@@ -371,7 +373,11 @@ if (typeof window !== "undefined") {
         && (!this.category || task.category === this.category)
         && (this.status === "all" || (this.status ? task.status === this.status : task.status !== "done"))
         && (!this.assignee || (task.assigned_users || []).some((u) => String(u.id) === this.assignee))
+        && (!this.priority || task.priority === this.priority)
         && `${task.title} ${task.description || ""}`.toLocaleLowerCase().includes((this.search || "").toLocaleLowerCase()));
+      if (this.sort === "due") tasks.sort((a,b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
+      if (this.sort === "title") tasks.sort((a,b) => a.title.localeCompare(b.title));
+      if (this.sort === "priority") {const rank = {urgent:4,high:3,medium:2,low:1,none:0};tasks.sort((a,b) => (rank[b.priority] || 0) - (rank[a.priority] || 0));}
       const groups = new Map();
       if (this.kanban) for (const status of ["open", "in_progress", "done"]) groups.set(status, []);
       for (const task of tasks) {const key = this.kanban ? task.status : task.category || "misc";if (!groups.has(key)) groups.set(key, []);groups.get(key).push(task);}
@@ -381,7 +387,7 @@ if (typeof window !== "undefined") {
           const row = element("div", {className: `task${String(this.selectedId) === String(task.id) ? " selected" : ""}`});
           const checkbox = element("input", {type: "checkbox", checked: task.status === "done", disabled: this.busy});checkbox.setAttribute("aria-label", `Complete ${task.title}`);
           checkbox.addEventListener("change", () => this.mutate(task, "status", {fields: {status: checkbox.checked ? "done" : "open"}}));
-          const body = element("div", {className: "body"});body.append(this.button(task.title, () => {this.selectedId = task.id;this.renderOverview();this.loadDetail(task);}, "", false));
+          const body = element("div", {className: "body"});body.append(this.button(task.title, () => {this.selectedId = task.id;this.detailTask = null;this.renderOverview();}, "", false));
           body.append(element("div", {className: "badges"}, [task.status === "in_progress" ? "In progress" : "", task.priority !== "none" ? this.t(task.priority || "") : "", task.due_date, task.is_recurring ? "Repeats" : "", (task.tags || []).join(", ")].filter(Boolean).join(" · ")));
           const avatars = element("div", {className: "avatars"});
           for (const user of task.assigned_users || []) {const avatar = element("span", {className: "avatar", title: user.display_name}, (user.display_name || "?").split(/\s+/).map((s) => s[0]).slice(0,2).join(""));avatars.append(avatar);}
@@ -400,7 +406,23 @@ if (typeof window !== "undefined") {
     async loadDetail(task) {
       try {
         const result = await this.call("yuvomi/task", {uid: String(task.id)});
-        if (!this.destroyed && this.selectedId === task.id) {this.detailTask = result.task;this.renderDetail(result.task);}
+        if (!this.destroyed && this.selectedId === task.id) {
+          this.detailTask = result.task;this.renderDetail(result.task);
+          const target = this.commentsContainer;
+          try {
+            const comments = await this.call("yuvomi/comments", {uid: String(task.id)});
+            if (!this.destroyed && this.selectedId === task.id && target.isConnected) {
+              target.replaceChildren();
+              for (const comment of comments) {
+                const row = element("div", {className: "task"});
+                const body = element("div", {className: "body"});
+                body.append(element("strong", {}, comment.author_name || "Unknown author"), element("div", {className: "badges"}, comment.created_at || ""), element("div", {className: "description"}, comment.comment));
+                row.append(body);target.append(row);
+              }
+              if (!comments.length) target.textContent = "No comments yet";
+            }
+          } catch (err) {if (target.isConnected) target.textContent = `Comments unavailable: ${err.message || err}`;}
+        }
       } catch (err) {this.error.textContent = err.message || String(err);}
     }
     renderDetail(task) {
@@ -419,6 +441,22 @@ if (typeof window !== "undefined") {
       actions.append(this.button(task.archived_at ? "restore" : "archive", () => this.mutate(task, "archive", {archived: !task.archived_at})));
       actions.append(this.button("delete", () => {if (window.confirm(this.t("confirm"))) this.mutate(task, "delete");}, "danger"));
       this.detail.append(actions);
+      this.detail.append(element("h3", {}, "Comments"));
+      this.commentsContainer = element("div", {className: "comments"}, "Loading comments…");
+      const draft = element("textarea", {placeholder: "Write a comment…", maxLength:10000, value:this.commentDrafts?.[task.id] || ""});
+      draft.setAttribute("aria-label", "Write a comment");
+      draft.addEventListener("input", () => {this.commentDrafts ||= {};this.commentDrafts[task.id] = draft.value;});
+      const send = this.button("Post comment", async () => {
+        if (!draft.value.trim() || this.busy) return;
+        send.disabled = true;this.busy = true;
+        try {
+          await this.call("yuvomi/mutate", {operation: "comment", uid: String(task.id), comment: draft.value.trim()});
+          this.commentDrafts ||= {};delete this.commentDrafts[task.id];
+          await this.loadDetail(task);
+        } catch (err) {this.error.textContent = err.message || String(err);}
+        finally {this.busy = false;send.disabled = false;}
+      }, "primary", false);
+      this.detail.append(this.commentsContainer, draft, send);
     }
   }
   if (!customElements.get("yuvomi-task-board")) customElements.define("yuvomi-task-board", YuvomiTaskBoard);

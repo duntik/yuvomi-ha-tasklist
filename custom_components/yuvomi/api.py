@@ -120,3 +120,17 @@ class YuvomiApi:
 
     async def delete(self, uid: str) -> dict[str, Any]:
         return await self.request("DELETE", f"tasks/{self.task_id(uid)}")
+
+    async def comments(self, uid: str) -> list[dict[str, Any]]:
+        result = await self.request("GET", f"tasks/{self.task_id(uid)}/comments")
+        rows = result.get("data")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise YuvomiError("Unexpected comments response")
+        return rows
+
+    async def add_comment(self, uid: str, comment: str) -> dict[str, Any]:
+        if not comment.strip():
+            raise YuvomiError("Comment cannot be empty")
+        return await self.request(
+            "POST", f"tasks/{self.task_id(uid)}/comments", {"comment": comment.strip()}
+        )

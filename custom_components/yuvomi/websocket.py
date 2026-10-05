@@ -93,7 +93,10 @@ async def ws_task(hass, connection, msg):
     {
         vol.Required("type"): "yuvomi/mutate",
         vol.Required("entity_id"): str,
-        vol.Required("operation"): vol.In(["create", "update", "status", "archive", "delete"]),
+        vol.Required("operation"): vol.In(
+            ["create", "update", "status", "archive", "delete", "comment"]
+        ),
+        vol.Optional("comment"): vol.All(str, vol.Length(min=1, max=10000)),
         vol.Optional("uid"): str,
         vol.Optional("fields", default={}): FIELDS,
         vol.Optional("archived", default=True): bool,
@@ -124,6 +127,8 @@ async def ws_mutate(hass, connection, msg):
                 result = await api.status(uid, fields["status"])
             elif operation == "archive":
                 result = await api.archive(uid, msg["archived"])
+            elif operation == "comment":
+                result = await api.add_comment(uid, msg.get("comment", ""))
             else:
                 result = await api.delete(uid)
             await coordinator.async_refresh()
@@ -135,7 +140,24 @@ async def ws_mutate(hass, connection, msg):
         connection.send_error(msg["id"], "yuvomi_error", str(err))
 
 
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "yuvomi/comments",
+        vol.Required("entity_id"): str,
+        vol.Required("uid"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_comments(hass, connection, msg):
+    try:
+        coordinator = get_coordinator(hass, connection, msg["entity_id"])
+        connection.send_result(msg["id"], await coordinator.api.comments(msg["uid"]))
+    except YuvomiError as err:
+        connection.send_error(msg["id"], "yuvomi_error", str(err))
+
+
 def async_register_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_tasks)
     websocket_api.async_register_command(hass, ws_task)
     websocket_api.async_register_command(hass, ws_mutate)
+    websocket_api.async_register_command(hass, ws_comments)

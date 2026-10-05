@@ -70,6 +70,18 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         await self.api.update("1", {"title": "Renamed"})
         self.assertEqual(self.requests[-1][4], {"title": "Renamed"})
 
+    async def test_comments_read_and_write(self):
+        self.response_body = {"data": [{"comment": "Hello", "author_name": "User"}]}
+        self.assertEqual((await self.api.comments("12"))[0]["comment"], "Hello")
+        self.assertEqual(self.requests[-1][0:2], ("GET", "/api/v1/tasks/12/comments"))
+        await self.api.add_comment("12", "  Hello  ")
+        self.assertEqual(self.requests[-1][0:2], ("POST", "/api/v1/tasks/12/comments"))
+        self.assertEqual(self.requests[-1][4], {"comment": "Hello"})
+        with self.assertRaises(YuvomiError):
+            await self.api.add_comment("12", "  ")
+        with self.assertRaises(YuvomiError):
+            await self.api.comments("../auth")
+
     async def test_rejects_token_redirect(self):
         self.response_status = 302
         with self.assertRaises(YuvomiError):
