@@ -100,7 +100,10 @@ class YuvomiOptionsFlow(OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_TIME_ZONE, default=values[CONF_TIME_ZONE]): str,
+                    vol.Required(
+                        CONF_TIME_ZONE,
+                        default=values.get(CONF_TIME_ZONE, self.hass.config.time_zone),
+                    ): str,
                     vol.Required(CONF_ENHANCE_UI, default=values.get(CONF_ENHANCE_UI, True)): bool,
                 }
             ),

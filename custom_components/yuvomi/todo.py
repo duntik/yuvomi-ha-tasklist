@@ -38,7 +38,9 @@ class YuvomiTodo(CoordinatorEntity, TodoListEntity):
         super().__init__(coordinator)
         self._attr_unique_id = f"{coordinator.entry.unique_id}_tasks"
         self.zone = ZoneInfo(
-            coordinator.entry.options.get(CONF_TIME_ZONE, coordinator.entry.data[CONF_TIME_ZONE])
+            coordinator.entry.options.get(CONF_TIME_ZONE)
+            or coordinator.entry.data.get(CONF_TIME_ZONE)
+            or coordinator.hass.config.time_zone
         )
 
     @property

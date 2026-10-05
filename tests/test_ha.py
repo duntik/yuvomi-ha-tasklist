@@ -4,14 +4,14 @@ import asyncio
 import importlib.util
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 HA_AVAILABLE = importlib.util.find_spec("homeassistant") is not None
 if HA_AVAILABLE:
     from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.todo import TodoItemStatus
 
-    from custom_components.yuvomi.config_flow import YuvomiConfigFlow
+    from custom_components.yuvomi.config_flow import YuvomiConfigFlow, YuvomiOptionsFlow
     from custom_components.yuvomi.todo import YuvomiTodo
     from custom_components.yuvomi.websocket import FIELDS, get_coordinator
 
@@ -52,6 +52,24 @@ class HomeAssistantTests(unittest.IsolatedAsyncioTestCase):
         item = entity.todo_items[0]
         self.assertEqual(item.status, TodoItemStatus.NEEDS_ACTION)
         self.assertEqual(item.due.isoformat(), "2026-07-01T10:00:00+01:00")
+
+    async def test_legacy_entry_without_timezone_opens_options(self):
+        flow = YuvomiOptionsFlow()
+        flow.hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/London"))
+        entry = SimpleNamespace(data={}, options={})
+        with patch.object(
+            YuvomiOptionsFlow, "config_entry", new_callable=PropertyMock, return_value=entry
+        ):
+            result = await flow.async_step_init()
+        self.assertEqual(result["data_schema"]({})["time_zone"], "Europe/London")
+
+    async def test_legacy_entity_uses_ha_timezone_and_option_override(self):
+        self.entity()
+        self.coordinator.entry.data = {}
+        self.coordinator.hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/London"))
+        self.assertEqual(YuvomiTodo(self.coordinator).zone.key, "Europe/London")
+        self.coordinator.entry.options = {"time_zone": "Europe/Paris"}
+        self.assertEqual(YuvomiTodo(self.coordinator).zone.key, "Europe/Paris")
 
     async def test_setup_form_is_valid_with_current_ha_selectors(self):
         flow = YuvomiConfigFlow()
